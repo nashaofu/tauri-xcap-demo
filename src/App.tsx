@@ -35,8 +35,8 @@ function App() {
 
       <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
 
-      <button onClick={screenshotsTest}>screenshots test</button>
-      <button onClick={xcapTest}>xcap test</button>
+      <button onClick={screenshotsTest}>crate screenshots test</button>
+      <button onClick={xcapTest}>crate xcap test</button>
       <p>{result()}</p>
     </div>
   )

@@ -1,7 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::{fs, path::Path};
+
 use screenshots::Screen;
+use tauri::{AppHandle, Runtime};
 use xcap::{Monitor, Window};
 
 fn normalized(filename: &str) -> String {
@@ -12,7 +15,7 @@ fn normalized(filename: &str) -> String {
         .replace("/", "")
 }
 
-fn monitor_capture() -> Vec<Monitor> {
+fn monitor_capture(path: &Path) -> Vec<Monitor> {
     let monitors = Monitor::all().unwrap();
 
     for monitor in &monitors {
@@ -30,15 +33,17 @@ fn monitor_capture() -> Vec<Monitor> {
         );
         let image = monitor.capture_image().unwrap();
 
-        image
-            .save(format!("target/monitor-{}.png", normalized(monitor.name())))
-            .unwrap();
+        let p = path.join(format!("monitor-{}.png", normalized(monitor.name())));
+
+        println!("path {:?}", p);
+
+        image.save(p).unwrap();
     }
 
     monitors
 }
 
-fn window_capture() -> Vec<Window> {
+fn window_capture(path: &Path) -> Vec<Window> {
     let windows = Window::all().unwrap();
 
     let mut i = 0;
@@ -57,13 +62,11 @@ fn window_capture() -> Vec<Window> {
         );
 
         let image = window.capture_image().unwrap();
-        image
-            .save(format!(
-                "target/window-{}-{}.png",
-                i,
-                normalized(window.title())
-            ))
-            .unwrap();
+
+        let p = path.join(format!("window-{}-{}.png", i, normalized(window.title())));
+        println!("path {:?}", p);
+
+        image.save(p).unwrap();
 
         i += 1;
     }
@@ -71,32 +74,30 @@ fn window_capture() -> Vec<Window> {
     windows
 }
 
-fn screen_capture() {
+fn screen_capture(path: &Path) {
     let monitors = Screen::all().unwrap();
 
     for monitor in monitors {
         let image = monitor.capture().unwrap();
         println!("Display {:?}", monitor);
         image
-            .save(format!("target/monitor-{}.png", monitor.display_info.id))
+            .save(path.join(format!("monitor-{}.png", monitor.display_info.id)))
             .unwrap();
     }
 }
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
-fn screenshots_test() -> String {
-    screen_capture();
+fn screenshots_test<R: Runtime>(app: AppHandle<R>) -> String {
+    screen_capture(&app.path_resolver().app_data_dir().unwrap());
 
     "screenshots_test done!".into()
 }
 
 #[tauri::command]
-fn xcap_test() -> String {
-    monitor_capture();
-    window_capture();
-
-    screen_capture();
+fn xcap_test<R: Runtime>(app: AppHandle<R>) -> String {
+    monitor_capture(&app.path_resolver().app_data_dir().unwrap());
+    window_capture(&app.path_resolver().app_data_dir().unwrap());
 
     "xcap_test done!".into()
 }
@@ -104,6 +105,13 @@ fn xcap_test() -> String {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![screenshots_test, xcap_test])
+        .setup(|app| {
+            let path = app.path_resolver().app_data_dir().unwrap();
+            if !path.exists() {
+                fs::create_dir_all(path).unwrap();
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
